@@ -1,0 +1,24 @@
+{
+  "name": "pypi_gragh",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@renovatebot/pep440": "^3.0.20",
+    "cytoscape": "^3.33.1",
+    "preact": "^10.29.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.4",
+    "@types/node": "^24.12.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1",
+    "vitest": "^4.1.2"
+  }
+}
