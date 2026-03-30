@@ -8,6 +8,7 @@ import type {
   GraphDirection,
   PlatformOption,
   ResolutionInputs,
+  ResolutionProgress,
   ResolutionResult,
   RootOptions,
 } from './types.ts'
@@ -47,6 +48,9 @@ export function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
     initialInputs.packageName ? 'loading' : 'idle',
+  )
+  const [progress, setProgress] = useState<ResolutionProgress | null>(
+    initialInputs.packageName ? createPendingProgress(initialInputs.packageName) : null,
   )
   const [error, setError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -128,12 +132,21 @@ export function App() {
     const requestId = latestRequestId.current + 1
     latestRequestId.current = requestId
     setStatus('loading')
+    setProgress(createPendingProgress(nextInputs.packageName))
     setError(null)
     setSelectedNodeId(null)
 
     try {
       const { client, resolveDependencyGraph } = await ensureResolutionEngine()
-      const nextResult = await resolveDependencyGraph(nextInputs, client)
+      const nextResult = await resolveDependencyGraph(nextInputs, client, {
+        onProgress(nextProgress) {
+          if (latestRequestId.current !== requestId) {
+            return
+          }
+
+          setProgress(nextProgress)
+        },
+      })
       if (latestRequestId.current !== requestId) {
         return
       }
@@ -142,11 +155,13 @@ export function App() {
         setInputs(nextResult.effectiveInputs)
       }
       setResult(nextResult)
+      setProgress(null)
       setStatus('ready')
     } catch (resolveError) {
       if (latestRequestId.current !== requestId) {
         return
       }
+      setProgress(null)
       setStatus('error')
       setError(resolveError instanceof Error ? resolveError.message : 'The graph could not be built.')
     }
@@ -200,6 +215,7 @@ export function App() {
     setResult(null)
     setSelectedNodeId(null)
     setStatus('idle')
+    setProgress(null)
     setError(null)
     setMenuOpen(false)
   }
@@ -257,6 +273,7 @@ export function App() {
   const rootNode =
     result?.rootId ? result.nodes.find((node) => node.id === result.rootId) ?? null : null
   const activeEnvironment = collectActiveEnvironment(displayedInputs, displayedRootOptions, rootNode?.displayVersion ?? null)
+  const activeProgress = status === 'loading' ? progress ?? createPendingProgress(inputs.packageName) : null
 
   useEffect(() => {
     if (!result) {
@@ -301,6 +318,8 @@ export function App() {
                 </button>
               ))}
             </div>
+
+            {activeProgress ? <ResolutionStatusNotice progress={activeProgress} /> : null}
 
             {error ? (
               <div class="inline-error">
@@ -594,20 +613,24 @@ export function App() {
             </div>
           </div>
 
-          <div class="graph-frame">
-            {GraphCanvasComponent ? (
-              <GraphCanvasComponent
-                nodes={result.nodes}
-                edges={result.edges}
-                rootId={result.rootId}
-                selectedNodeId={selectedNodeId}
-                direction={graphDirection}
-                showAllEdgeLabels={showAllEdgeLabels}
-                onSelectNode={setSelectedNodeId}
-              />
-            ) : (
-              <div class="graph-empty">{graphCanvasLoadError ?? 'Loading interactive graph…'}</div>
-            )}
+          <div class="graph-stage-body">
+            {activeProgress ? <ResolutionStatusNotice progress={activeProgress} compact /> : null}
+
+            <div class="graph-frame">
+              {GraphCanvasComponent ? (
+                <GraphCanvasComponent
+                  nodes={result.nodes}
+                  edges={result.edges}
+                  rootId={result.rootId}
+                  selectedNodeId={selectedNodeId}
+                  direction={graphDirection}
+                  showAllEdgeLabels={showAllEdgeLabels}
+                  onSelectNode={setSelectedNodeId}
+                />
+              ) : (
+                <div class="graph-empty">{graphCanvasLoadError ?? 'Loading interactive graph…'}</div>
+              )}
+            </div>
           </div>
         </section>
 
@@ -633,6 +656,37 @@ interface NodeInspectorProps {
   rootId: string | null
   onClose: () => void
   onOverrideChange: (value: string) => void
+}
+
+interface ResolutionStatusNoticeProps {
+  progress: ResolutionProgress
+  compact?: boolean
+}
+
+function ResolutionStatusNotice(props: ResolutionStatusNoticeProps) {
+  return (
+    <section
+      class={props.compact ? 'inline-status inline-status-compact' : 'inline-status'}
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <div class="status-head">
+        <span class="status-pill">
+          <span class="status-pulse" aria-hidden="true" />
+          {formatResolutionPhase(props.progress.phase)}
+        </span>
+        {props.progress.currentPackage ? <span class="status-current">{props.progress.currentPackage}</span> : null}
+      </div>
+      <p class="status-message">{props.progress.message}</p>
+      <div class="status-metrics">
+        <span>{props.progress.nodesDiscovered} nodes</span>
+        <span>{props.progress.edgesDiscovered} edges</span>
+        <span>{props.progress.networkRequests} API calls</span>
+        <span>{props.progress.cacheHits} cache hits</span>
+        {props.progress.depth !== null ? <span>depth {props.progress.depth}</span> : null}
+      </div>
+    </section>
+  )
 }
 
 function NodeInspector(props: NodeInspectorProps) {
@@ -749,6 +803,36 @@ function sameResolutionInputs(left: ResolutionInputs, right: ResolutionInputs): 
     left.extras.join(',') === right.extras.join(',') &&
     JSON.stringify(left.manualVersions) === JSON.stringify(right.manualVersions)
   )
+}
+
+function createPendingProgress(packageName: string): ResolutionProgress {
+  const trimmedPackageName = packageName.trim()
+
+  return {
+    phase: 'initializing',
+    message: trimmedPackageName ? `Preparing to resolve ${trimmedPackageName}…` : 'Preparing dependency resolution…',
+    currentPackage: trimmedPackageName || null,
+    depth: 0,
+    nodesDiscovered: 0,
+    edgesDiscovered: 0,
+    cacheHits: 0,
+    networkRequests: 0,
+  }
+}
+
+function formatResolutionPhase(phase: ResolutionProgress['phase']): string {
+  switch (phase) {
+    case 'initializing':
+      return 'Preparing'
+    case 'loading-metadata':
+      return 'Loading metadata'
+    case 'analyzing-environment':
+      return 'Checking environments'
+    case 'resolving-graph':
+      return 'Resolving graph'
+    case 'complete':
+      return 'Complete'
+  }
 }
 
 function collectActiveEnvironment(

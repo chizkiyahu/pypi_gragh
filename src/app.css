@@ -294,6 +294,108 @@
   color: var(--ink);
 }
 
+.inline-status {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(36, 71, 58, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 250, 239, 0.92), rgba(249, 243, 228, 0.82));
+  color: var(--ink);
+}
+
+.inline-status-compact {
+  margin-top: 4px;
+}
+
+.status-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.status-pill,
+.status-current,
+.status-metrics span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 251, 243, 0.78);
+  border: 1px solid rgba(36, 71, 58, 0.12);
+}
+
+.status-pill {
+  color: var(--forest);
+  font-weight: 700;
+}
+
+.status-current {
+  color: var(--ink-soft);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.status-pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(240, 138, 36, 0.4);
+  animation: status-pulse 1.4s ease-out infinite;
+}
+
+.status-message {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.status-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status-metrics span {
+  color: var(--ink-soft);
+}
+
+@keyframes status-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(240, 138, 36, 0.42);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 9px rgba(240, 138, 36, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(240, 138, 36, 0);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .inline-status {
+    border-color: rgba(219, 239, 228, 0.14);
+    background: linear-gradient(180deg, rgba(24, 34, 30, 0.94), rgba(18, 27, 24, 0.88));
+  }
+
+  .status-pill,
+  .status-current,
+  .status-metrics span {
+    background: rgba(22, 31, 27, 0.82);
+    border-color: rgba(219, 239, 228, 0.1);
+  }
+}
+
 .social-link {
   display: inline-flex;
   align-items: center;
@@ -451,6 +553,14 @@
   padding: 14px;
 }
 
+.graph-stage-body {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .graph-stage-header {
   display: flex;
   justify-content: space-between;
@@ -493,6 +603,10 @@
 }
 
 .graph-frame {
+  display: grid;
+  flex: 1 1 auto;
+  height: 100%;
+  min-width: 0;
   min-height: 0;
   border-radius: 24px;
   overflow: hidden;
@@ -504,6 +618,7 @@
   position: relative;
   width: 100%;
   height: 100%;
+  min-height: 0;
 }
 
 .graph-canvas {

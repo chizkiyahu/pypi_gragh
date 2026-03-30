@@ -253,6 +253,25 @@ export function GraphCanvas(props: GraphCanvasProps) {
     }
   }, [])
 
+  useEffect(() => {
+    const container = containerRef.current
+    const instance = cytoscapeRef.current
+    if (!container || !instance || typeof ResizeObserver === 'undefined') {
+      return
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      instance.resize()
+      instance.center()
+    })
+
+    resizeObserver.observe(container)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [props.rootId])
+
   function fitGraph() {
     const instance = cytoscapeRef.current
     if (!instance) {

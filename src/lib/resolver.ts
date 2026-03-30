@@ -8,8 +8,10 @@ import type {
   PypiProjectResponse,
   PypiVersionResponse,
   PlatformOption,
+  ResolveDependencyGraphOptions,
   ResolutionInputs,
   ResolutionLimits,
+  ResolutionProgress,
   ResolutionResult,
   RootOptions,
 } from '../types.ts'
@@ -57,6 +59,18 @@ interface ResolverState {
   projectSnapshots: Map<string, ProjectSnapshot>
   limits: ResolutionLimits
   insights: ReturnType<typeof createMutableInsights>
+  progress: ProgressReporter
+}
+
+interface ProgressUpdate {
+  phase: ResolutionProgress['phase']
+  message: string
+  currentPackage?: string | null
+  depth?: number | null
+}
+
+interface ProgressReporter {
+  emit(update: ProgressUpdate, force?: boolean): void
 }
 
 interface CompatibilityMatrix {
@@ -82,6 +96,7 @@ interface EnvironmentAnalysisContext {
 export async function resolveDependencyGraph(
   inputs: ResolutionInputs,
   client: PypiClient,
+  options?: ResolveDependencyGraphOptions,
 ): Promise<ResolutionResult> {
   const normalizedRoot = normalizePackageName(inputs.packageName)
   if (!normalizedRoot) {
@@ -116,12 +131,41 @@ export async function resolveDependencyGraph(
     projectSnapshots: new Map<string, ProjectSnapshot>(),
     limits: emptyLimits(),
     insights: createMutableInsights(rootExtras),
+    progress: createProgressReporter(() => state, options?.onProgress),
   }
 
   recordFetchSource(state.limits, rootProject.source)
   state.projectSnapshots.set(normalizedRoot, rootSnapshot)
+  state.progress.emit(
+    {
+      phase: 'loading-metadata',
+      message: `Loaded metadata for ${rootProject.data.info.name} from ${rootProject.source}.`,
+      currentPackage: rootProject.data.info.name,
+      depth: 0,
+    },
+    true,
+  )
+  state.progress.emit(
+    {
+      phase: 'analyzing-environment',
+      message: `Checking supported Python and platform combinations for ${rootProject.data.info.name}…`,
+      currentPackage: rootProject.data.info.name,
+      depth: 0,
+    },
+    true,
+  )
   const rootOptions = await deriveRootOptions(rootProject.data, rootSnapshot, inputs, rootExtras, client, state)
   const effectiveInputs = sanitizeInputs(inputs, rootOptions)
+
+  state.progress.emit(
+    {
+      phase: 'resolving-graph',
+      message: `Resolving dependency graph for ${rootProject.data.info.name}…`,
+      currentPackage: rootProject.data.info.name,
+      depth: 0,
+    },
+    true,
+  )
 
   const rootId = await resolveNode(
     {
@@ -138,6 +182,16 @@ export async function resolveDependencyGraph(
     new Set<string>(),
     rootProject.data.info.name,
     rootProject.data,
+  )
+
+  state.progress.emit(
+    {
+      phase: 'complete',
+      message: `Built graph with ${state.nodes.size} nodes and ${state.edges.size} edges.`,
+      currentPackage: rootProject.data.info.name,
+      depth: 0,
+    },
+    true,
   )
 
   return {
@@ -160,12 +214,27 @@ async function resolveNode(
   displayName?: string,
   preloadedProject?: PypiProjectResponse,
 ): Promise<string> {
+  const requestedDisplayName = displayName ?? request.name
+  state.progress.emit({
+    phase: 'resolving-graph',
+    message:
+      request.depth === 0
+        ? `Resolving ${requestedDisplayName}…`
+        : `Resolving dependency ${requestedDisplayName}…`,
+    currentPackage: requestedDisplayName,
+    depth: request.depth,
+  })
+
   const summary: PypiProjectResponse =
     preloadedProject ??
-    (await client.getProject(request.normalizedName).then((result) => {
-      recordFetchSource(state.limits, result.source)
-      return result.data
-    }))
+    (await fetchProjectSummary(
+      request.normalizedName,
+      requestedDisplayName,
+      client,
+      state,
+      'resolving-graph',
+      request.depth,
+    ).then((result) => result.data))
 
   if (!state.projectSnapshots.has(request.normalizedName)) {
     state.projectSnapshots.set(request.normalizedName, projectSnapshotFromReleases(summary.releases))
@@ -184,14 +253,21 @@ async function resolveNode(
 
   if (!versionChoice.selectedVersion) {
     state.limits.unresolvedNodes += 1
-    return ensureUnresolvedNode(
+    const unresolvedId = ensureUnresolvedNode(
       state,
       request,
       versionChoice.legalVersions,
       manualOverride,
       versionChoice.rejectionReason ?? 'The package could not be resolved.',
-      displayName ?? request.name,
+      requestedDisplayName,
     )
+    state.progress.emit({
+      phase: 'resolving-graph',
+      message: `Could not resolve ${requestedDisplayName}.`,
+      currentPackage: requestedDisplayName,
+      depth: request.depth,
+    })
+    return unresolvedId
   }
 
   const nodeId = makeNodeId(request.normalizedName, versionChoice.selectedVersion, request.selectedExtras)
@@ -203,17 +279,27 @@ async function resolveNode(
   const existing = state.nodes.get(nodeId)
   if (existing) {
     mergeNode(existing, request.requirementTexts, request.specifiers, versionChoice.legalVersions, manualOverride)
+    state.progress.emit({
+      phase: 'resolving-graph',
+      message: `Reused ${existing.packageName} ${existing.displayVersion}.`,
+      currentPackage: existing.packageName,
+      depth: request.depth,
+    })
     return nodeId
   }
 
   const versionResponse: { data: PypiProjectResponse | PypiVersionResponse; source: 'cache' | 'network' } =
     versionChoice.selectedVersion === summary.info.version
       ? { data: summary, source: 'cache' as const }
-      : await client.getVersion(request.normalizedName, versionChoice.selectedVersion)
-
-  if (versionChoice.selectedVersion !== summary.info.version) {
-    recordFetchSource(state.limits, versionResponse.source)
-  }
+      : await fetchVersionPayload(
+          request.normalizedName,
+          versionChoice.selectedVersion,
+          requestedDisplayName,
+          client,
+          state,
+          'resolving-graph',
+          request.depth,
+        )
 
   const node: GraphNode = {
     id: nodeId,
@@ -236,6 +322,12 @@ async function resolveNode(
     notes: [],
   }
   state.nodes.set(nodeId, node)
+  state.progress.emit({
+    phase: 'resolving-graph',
+    message: `Resolved ${node.packageName} ${node.displayVersion}.`,
+    currentPackage: node.packageName,
+    depth: request.depth,
+  })
 
   const markerContext = buildMarkerContext(inputs, request.selectedExtras)
   const nextPath = new Set(path)
@@ -579,6 +671,16 @@ async function analyzeEnvironmentSupport(
   nextPath.add(memoKey)
 
   const promise = (async (): Promise<EnvironmentAnalysisResult> => {
+    context.state.progress.emit({
+      phase: 'analyzing-environment',
+      message:
+        request.depth === 0
+          ? `Scanning supported environments for ${request.name}…`
+          : `Checking ${request.name} across Python and platform combinations…`,
+      currentPackage: request.name,
+      depth: request.depth,
+    })
+
     let summary: PypiProjectResponse
     try {
       summary = await loadProject(request.normalizedName, context, preloadedProject)
@@ -729,8 +831,14 @@ async function loadProject(
     return preloadedProject
   }
 
-  const result = await context.client.getProject(normalizedName)
-  recordFetchSource(context.state.limits, result.source)
+  const result = await fetchProjectSummary(
+    normalizedName,
+    normalizedName,
+    context.client,
+    context.state,
+    'analyzing-environment',
+    null,
+  )
   return result.data
 }
 
@@ -744,8 +852,15 @@ async function loadVersionData(
     return summary
   }
 
-  const result = await context.client.getVersion(normalizedName, selectedVersion)
-  recordFetchSource(context.state.limits, result.source)
+  const result = await fetchVersionPayload(
+    normalizedName,
+    selectedVersion,
+    summary.info.name,
+    context.client,
+    context.state,
+    'analyzing-environment',
+    null,
+  )
   return result.data
 }
 
@@ -1267,6 +1382,95 @@ function extractRootExtras(requiresDist: string[]): string[] {
   }
 
   return [...extras]
+}
+
+function createProgressReporter(
+  getState: () => ResolverState,
+  onProgress?: ResolveDependencyGraphOptions['onProgress'],
+): ProgressReporter {
+  let lastFingerprint = ''
+
+  return {
+    emit(update, force = false) {
+      if (!onProgress) {
+        return
+      }
+
+      const state = getState()
+      const snapshot: ResolutionProgress = {
+        phase: update.phase,
+        message: update.message,
+        currentPackage: update.currentPackage ?? null,
+        depth: update.depth ?? null,
+        nodesDiscovered: state.nodes.size,
+        edgesDiscovered: state.edges.size,
+        cacheHits: state.limits.cacheHits,
+        networkRequests: state.limits.networkRequests,
+      }
+      const fingerprint = JSON.stringify(snapshot)
+      if (!force && fingerprint === lastFingerprint) {
+        return
+      }
+
+      lastFingerprint = fingerprint
+      onProgress(snapshot)
+    },
+  }
+}
+
+async function fetchProjectSummary(
+  normalizedName: string,
+  displayName: string,
+  client: PypiClient,
+  state: ResolverState,
+  phase: ResolutionProgress['phase'],
+  depth: number | null,
+): Promise<{ data: PypiProjectResponse; source: 'cache' | 'network' }> {
+  state.progress.emit({
+    phase,
+    message: `Loading metadata for ${displayName}…`,
+    currentPackage: displayName,
+    depth,
+  })
+
+  const result = await client.getProject(normalizedName)
+  recordFetchSource(state.limits, result.source)
+  state.progress.emit({
+    phase,
+    message: `Loaded metadata for ${result.data.info.name} from ${result.source}.`,
+    currentPackage: result.data.info.name,
+    depth,
+  })
+
+  return result
+}
+
+async function fetchVersionPayload(
+  normalizedName: string,
+  version: string,
+  displayName: string,
+  client: PypiClient,
+  state: ResolverState,
+  phase: ResolutionProgress['phase'],
+  depth: number | null,
+): Promise<{ data: PypiVersionResponse; source: 'cache' | 'network' }> {
+  state.progress.emit({
+    phase,
+    message: `Loading ${displayName} ${version} metadata…`,
+    currentPackage: displayName,
+    depth,
+  })
+
+  const result = await client.getVersion(normalizedName, version)
+  recordFetchSource(state.limits, result.source)
+  state.progress.emit({
+    phase,
+    message: `Loaded ${displayName} ${version} metadata from ${result.source}.`,
+    currentPackage: displayName,
+    depth,
+  })
+
+  return result
 }
 
 function emptyLimits(): ResolutionLimits {

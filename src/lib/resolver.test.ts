@@ -247,6 +247,7 @@ describe('resolver integration', () => {
       fetcher,
       ttlMs: 1000 * 60 * 60,
     })
+    const progressUpdates: string[] = []
 
     const graph = await resolveDependencyGraph({
       packageName: 'demo',
@@ -255,12 +256,20 @@ describe('resolver integration', () => {
       platform: 'linux',
       extras: [],
       manualVersions: {},
-    }, client)
+    }, client, {
+      onProgress(progress) {
+        progressUpdates.push(progress.phase)
+      },
+    })
 
     expect(graph.nodes.map((node) => node.packageName)).toEqual(['demo', 'dep', 'leaf'])
     expect(graph.nodes[0]?.displayVersion).toBe('1.0.1')
     expect(graph.edges).toHaveLength(2)
     expect(graph.limits.networkRequests).toBe(3)
+    expect(progressUpdates).toContain('loading-metadata')
+    expect(progressUpdates).toContain('analyzing-environment')
+    expect(progressUpdates).toContain('resolving-graph')
+    expect(progressUpdates.at(-1)).toBe('complete')
     expect(graph.rootOptions.availableVersions).toEqual(['1.1.0rc1', '1.0.1', '1.0.0'])
     expect(graph.rootOptions.showVersionSelector).toBe(true)
     expect(graph.rootOptions.supportedPythonVersions).toEqual(['3.12'])

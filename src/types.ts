@@ -177,6 +177,28 @@ export interface RootOptions {
   showPlatformSelector: boolean
 }
 
+export type ResolutionPhase =
+  | 'initializing'
+  | 'loading-metadata'
+  | 'analyzing-environment'
+  | 'resolving-graph'
+  | 'complete'
+
+export interface ResolutionProgress {
+  phase: ResolutionPhase
+  message: string
+  currentPackage: string | null
+  depth: number | null
+  nodesDiscovered: number
+  edgesDiscovered: number
+  cacheHits: number
+  networkRequests: number
+ }
+
+export interface ResolveDependencyGraphOptions {
+  onProgress?: (progress: ResolutionProgress) => void
+}
+
 export interface ResolutionResult {
   rootId: string | null
   nodes: GraphNode[]
