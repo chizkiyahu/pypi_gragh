@@ -94,9 +94,7 @@ function buildGraphStyles(isDark: boolean) {
         'line-color': edgeColor,
         'target-arrow-color': edgeColor,
         'target-arrow-shape': 'triangle',
-        'curve-style': 'unbundled-bezier',
-        'control-point-distances': [40],
-        'control-point-weights': [0.5],
+        'curve-style': 'bezier',
         label: 'data(label)',
         'font-size': '13px',
         'font-weight': 600,
@@ -208,8 +206,10 @@ export function GraphCanvas(props: GraphCanvasProps) {
 
     instance.layout({
       name: 'breadthfirst',
-      animate: true,
-      animationDuration: 220,
+      // Newly loaded graphs briefly share the same origin point before the
+      // breadthfirst positions are applied. Keeping the layout synchronous
+      // avoids Cytoscape's "invalid endpoints" warnings while rendering.
+      animate: false,
       directed: true,
       fit: true,
       roots: props.rootId ? [props.rootId] : undefined,
