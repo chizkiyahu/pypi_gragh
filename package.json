@@ -2,6 +2,7 @@
   "name": "pypi-dep-graph",
   "private": true,
   "version": "0.0.0",
+  "description": "Free online Python dependency graph visualizer — explore PyPI package dependency trees interactively in the browser.",
   "type": "module",
   "scripts": {
     "dev": "vite",

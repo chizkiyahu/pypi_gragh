@@ -1,6 +1,16 @@
-# PyPI DepGraph
+# PyPI Dependency Graph Visualizer
 
-Interactive dependency graph explorer for Python PyPI packages. Deployed as a static GitHub Pages site.
+**Free online tool to visualize Python package dependency trees.** Enter any PyPI package name and instantly explore its full dependency graph — resolve versions, extras, platform constraints, and pip install chains interactively in your browser. No installation required.
+
+🔗 **[Live Demo →](https://chizkiyahu.github.io/pypi_graph/)**
+
+## Why use this?
+
+- **Audit what `pip install` actually pulls in** before committing to a new dependency.
+- **Compare dependency trees** across different Python versions and platforms.
+- **Explore extras** — see which optional dependency groups exist and what they add.
+- **Understand version constraints** — view combined PEP 508 specifier fragments per node.
+- **Works 100 % in the browser** — no backend, no sign-up, no data leaves your machine.
 
 ## Features
 
@@ -31,3 +41,8 @@ npm run dev
 npm run test
 npm run build
 ```
+
+## Keywords
+
+python dependency graph, pypi dependency tree, visualize pip dependencies, python package dependency checker, pip install dependency graph, python dependency tree viewer, pypi dependency explorer, interactive python dependency visualization
+

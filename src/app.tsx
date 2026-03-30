@@ -290,9 +290,9 @@ export function App() {
 
         <main class="landing-stage">
           <section class="panel landing-card">
-            <p class="eyebrow">PyPI DepGraph</p>
-            <h1>Enter a package name.</h1>
-            <p class="landing-copy">Visualize the full dependency tree. Advanced settings appear after the package metadata loads.</p>
+            <p class="eyebrow">Python Dependency Graph Visualizer</p>
+            <h1>Visualize any Python package's dependency tree</h1>
+            <p class="landing-copy">Enter a PyPI package name to explore its full dependency graph — resolve versions, extras, and platform constraints interactively. No installation required.</p>
 
             <form class="landing-form" onSubmit={handleSubmit}>
               <input
@@ -302,16 +302,16 @@ export function App() {
                     ...current,
                     packageName: (event.currentTarget as HTMLInputElement).value,
                   }))}
-                placeholder="fastapi"
+                placeholder="e.g. fastapi, django, requests…"
                 spellcheck={false}
               />
               <button class="primary landing-submit" type="submit" disabled={!inputs.packageName.trim() || status === 'loading'}>
-                {status === 'loading' ? 'Resolving...' : 'Build graph'}
+                {status === 'loading' ? 'Resolving…' : 'Build dependency graph'}
               </button>
             </form>
 
             <div class="landing-samples">
-              <span class="subtle-label">Try one</span>
+              <span class="subtle-label">Try a popular package</span>
               {SAMPLE_PACKAGES.map((sample) => (
                 <button class="sample-link" type="button" onClick={() => handleQuickStart(sample)}>
                   {sample}
@@ -394,7 +394,7 @@ export function App() {
         <div class="drawer-head">
           <div>
             <p class="eyebrow">Settings</p>
-            <p class="drawer-title">Package inputs</p>
+            <p class="drawer-title">Resolution settings</p>
           </div>
           <button class="icon-button" type="button" onClick={() => setMenuOpen(false)}>
             Close

@@ -4,37 +4,126 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PyPI DepGraph — Visualize Python Package Dependencies</title>
-    <meta name="description" content="Explore Python package dependencies visually. PyPI DepGraph builds interactive dependency graphs for any PyPI package, resolving versions, extras, and platform constraints in your browser." />
-    <meta name="keywords" content="Python, PyPI, dependency graph, dependency tree, resolver, packages, pip, constraints, visualization, package explorer, PEP 508" />
+    <title>PyPI Dependency Graph Visualizer — View Python Package Dependencies Online</title>
+    <meta name="description" content="Free online Python dependency graph visualizer. Enter any PyPI package name and instantly see its full dependency tree — resolve versions, extras, platform constraints, and pip install chains interactively in your browser." />
+    <meta name="keywords" content="python dependency graph, pypi dependency tree, visualize pip dependencies, python package dependency checker, pip install dependency graph, python dependency tree viewer, pypi dependency explorer, view python package dependencies online, interactive python dependency visualization, python requirements dependency graph, pip dependency resolver, PEP 508, python package explorer, transitive dependencies python" />
     <meta name="author" content="chizkiyahu" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://chizkiyahu.github.io/pypi_graph/" />
-    <meta property="og:title" content="PyPI DepGraph — Visualize Python Package Dependencies" />
-    <meta property="og:description" content="Build interactive dependency graphs for any PyPI package. Resolve versions, extras, and platform constraints visually in your browser." />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Python Dependency Graph Visualizer — Explore PyPI Packages Online" />
+    <meta property="og:description" content="Free interactive tool to visualize Python package dependency trees. Enter any PyPI package and see every transitive dependency, version constraint, and platform marker — no install required." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://chizkiyahu.github.io/pypi_graph/" />
     <meta property="og:site_name" content="PyPI DepGraph" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="PyPI DepGraph — Visualize Python Package Dependencies" />
-    <meta name="twitter:description" content="Build interactive dependency graphs for any PyPI package. Resolve versions, extras, and platform constraints visually." />
+    <meta name="twitter:title" content="Python Dependency Graph Visualizer — Explore PyPI Packages Online" />
+    <meta name="twitter:description" content="Free interactive tool to visualize pip/PyPI dependency trees. See every transitive dependency, version constraint, and platform marker in your browser." />
+
     <meta name="theme-color" content="#1e4b3d" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#101615" media="(prefers-color-scheme: dark)" />
+
+    <!-- Structured Data — WebApplication -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
-      "name": "PyPI DepGraph",
-      "description": "Interactive dependency graph explorer for Python PyPI packages",
+      "name": "PyPI Dependency Graph Visualizer",
+      "alternateName": "PyPI DepGraph",
+      "description": "Free online tool to visualize and explore the full dependency tree of any Python PyPI package. Resolve versions, extras, and platform constraints interactively in the browser.",
       "url": "https://chizkiyahu.github.io/pypi_graph/",
       "applicationCategory": "DeveloperApplication",
+      "applicationSubCategory": "Dependency Analysis",
       "operatingSystem": "Any",
-      "offers": { "@type": "Offer", "price": "0" }
+      "browserRequirements": "Requires a modern web browser with JavaScript enabled",
+      "softwareHelp": {
+        "@type": "CreativeWork",
+        "url": "https://github.com/chizkiyahu/pypi_graph#readme"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Interactive dependency graph visualization",
+        "Supports PyPI extras and platform markers",
+        "Python version constraint evaluation",
+        "Manual version pinning",
+        "IndexedDB caching for fast repeat lookups",
+        "Works entirely in the browser — no server required"
+      ],
+      "author": {
+        "@type": "Person",
+        "name": "chizkiyahu",
+        "url": "https://github.com/chizkiyahu"
+      }
+    }
+    </script>
+
+    <!-- Structured Data — BreadcrumbList -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "PyPI Dependency Graph Visualizer",
+          "item": "https://chizkiyahu.github.io/pypi_graph/"
+        }
+      ]
+    }
+    </script>
+
+    <!-- Structured Data — FAQPage (boosts rich results) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do I visualize Python package dependencies?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Enter a PyPI package name into PyPI DepGraph and the tool will build an interactive dependency tree showing every transitive dependency, version constraint, and platform marker — entirely in your browser."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is this dependency graph tool free to use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. PyPI DepGraph is completely free, open-source, and runs client-side with no sign-up or installation required."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does this replace pip's dependency resolver?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. PyPI DepGraph is a visualization tool for exploring dependency trees. It evaluates PEP 508 markers and version specifiers from PyPI metadata but is not a full constraint solver like pip."
+          }
+        }
+      ]
     }
     </script>
   </head>
   <body>
     <div id="app"></div>
+    <noscript>
+      <div style="max-width:600px;margin:4rem auto;font-family:system-ui,sans-serif;text-align:center;">
+        <h1>PyPI Dependency Graph Visualizer</h1>
+        <p>This tool requires JavaScript to build interactive dependency graphs for Python packages. Please enable JavaScript and reload the page.</p>
+        <p><a href="https://github.com/chizkiyahu/pypi_graph">View the source on GitHub</a></p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
