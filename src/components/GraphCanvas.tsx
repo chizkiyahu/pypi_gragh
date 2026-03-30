@@ -319,6 +319,9 @@ export function GraphCanvas(props: GraphCanvasProps) {
 
     const handleFullscreenChange = () => {
       setIsFullscreen(document.fullscreenElement === shell)
+      // Ensure the ResizeObserver uses 'fit' mode when the container
+      // changes size during the fullscreen transition.
+      viewportFitPassesRef.current = Math.max(viewportFitPassesRef.current, 4)
     }
 
     handleFullscreenChange()
