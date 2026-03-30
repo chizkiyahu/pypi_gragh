@@ -10,6 +10,27 @@ export interface PlatformDescriptor {
   machine: string
 }
 
+interface BrowserPlatformHints {
+  platform?: string | null
+  userAgent?: string | null
+  userAgentData?: BrowserUserAgentDataLike | null
+}
+
+interface BrowserHighEntropyValues {
+  architecture?: string
+  bitness?: string
+  platform?: string
+}
+
+interface BrowserUserAgentDataLike {
+  platform?: string
+  architecture?: string
+  bitness?: string
+  getHighEntropyValues?: (
+    hints: string[],
+  ) => Promise<BrowserHighEntropyValues>
+}
+
 const PLATFORM_DESCRIPTORS: PlatformDescriptor[] = [
   {
     id: 'linux-x86_64',
@@ -180,6 +201,47 @@ export function sortPlatformOptions(values: Iterable<PlatformOption>): PlatformO
   })
 }
 
+export function detectBrowserPlatformSync(
+  hints: BrowserPlatformHints = getBrowserPlatformHints(),
+): PlatformOption {
+  const family = detectPlatformFamily(hints)
+  if (!family) {
+    return DEFAULT_PLATFORM
+  }
+
+  const machine = detectPlatformMachine(hints, family)
+  return normalizePlatformTarget(`${family}-${machine}`)
+}
+
+export async function detectBrowserPlatform(
+  hints: BrowserPlatformHints = getBrowserPlatformHints(),
+): Promise<PlatformOption> {
+  const userAgentData = hints.userAgentData
+
+  if (!userAgentData?.getHighEntropyValues) {
+    return detectBrowserPlatformSync(hints)
+  }
+
+  try {
+    const highEntropyValues = await userAgentData.getHighEntropyValues([
+      'architecture',
+      'bitness',
+      'platform',
+    ])
+
+    return detectBrowserPlatformSync({
+      ...hints,
+      platform: highEntropyValues.platform ?? userAgentData.platform ?? hints.platform,
+      userAgentData: {
+        ...userAgentData,
+        ...highEntropyValues,
+      },
+    })
+  } catch {
+    return detectBrowserPlatformSync(hints)
+  }
+}
+
 function formatFamilyLabel(family: string): string {
   if (family === 'macos') {
     return 'macOS'
@@ -189,3 +251,116 @@ function formatFamilyLabel(family: string): string {
   }
   return 'Linux'
 }
+
+function getBrowserPlatformHints(): BrowserPlatformHints {
+  if (typeof navigator === 'undefined') {
+    return {}
+  }
+
+  return {
+    platform: navigator.platform,
+    userAgent: navigator.userAgent,
+    userAgentData: 'userAgentData' in navigator
+      ? (navigator as Navigator & { userAgentData?: BrowserUserAgentDataLike }).userAgentData ?? null
+      : null,
+  }
+}
+
+function detectPlatformFamily(hints: BrowserPlatformHints): PlatformDescriptor['family'] | null {
+  const haystack = [
+    hints.userAgentData?.platform,
+    hints.platform,
+    hints.userAgent,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  if (!haystack) {
+    return null
+  }
+
+  if (haystack.includes('windows') || haystack.includes('win32') || haystack.includes('win64')) {
+    return 'windows'
+  }
+
+  if (haystack.includes('mac') || haystack.includes('darwin')) {
+    return 'macos'
+  }
+
+  if (haystack.includes('linux') || haystack.includes('x11')) {
+    return 'linux'
+  }
+
+  return null
+}
+
+function detectPlatformMachine(
+  hints: BrowserPlatformHints,
+  family: PlatformDescriptor['family'],
+): string {
+  const architecture = hints.userAgentData?.architecture?.toLowerCase() ?? ''
+  const bitness = hints.userAgentData?.bitness?.toLowerCase() ?? ''
+  const haystack = [
+    architecture,
+    bitness,
+    hints.userAgentData?.platform,
+    hints.platform,
+    hints.userAgent,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  if (
+    haystack.includes('aarch64') ||
+    haystack.includes('arm64') ||
+    haystack.includes('armv8') ||
+    (architecture === 'arm' && bitness === '64')
+  ) {
+    return family === 'linux' ? 'aarch64' : 'arm64'
+  }
+
+  if (haystack.includes('armv7') || haystack.includes('armv7l')) {
+    return 'armv7l'
+  }
+
+  if (haystack.includes('ppc64le')) {
+    return 'ppc64le'
+  }
+
+  if (haystack.includes('s390x')) {
+    return 's390x'
+  }
+
+  if (
+    haystack.includes('x86_64') ||
+    haystack.includes('x64') ||
+    haystack.includes('amd64') ||
+    haystack.includes('win64') ||
+    haystack.includes('wow64') ||
+    hints.platform === 'MacIntel'
+  ) {
+    return 'x86_64'
+  }
+
+  if (
+    haystack.includes('i386') ||
+    haystack.includes('i686') ||
+    haystack.includes(' x86') ||
+    haystack.endsWith('x86')
+  ) {
+    return family === 'windows' ? 'x86' : 'i686'
+  }
+
+  if (family === 'macos') {
+    return 'arm64'
+  }
+
+  if (family === 'windows') {
+    return 'x86_64'
+  }
+
+  return 'x86_64'
+}
+

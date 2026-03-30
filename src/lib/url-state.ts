@@ -1,26 +1,25 @@
 import type { PlatformOption, ResolutionInputs } from '../types.ts'
-import { DEFAULT_PLATFORM, normalizePlatformTarget } from './platforms.ts'
+import { detectBrowserPlatformSync, normalizePlatformTarget } from './platforms.ts'
 import { COMMON_PYTHON_VERSIONS, normalizePackageName } from './versions.ts'
 
-const DEFAULT_INPUTS: ResolutionInputs = {
-  packageName: '',
-  rootVersion: null,
-  pythonVersion: '3.12',
-  platform: DEFAULT_PLATFORM,
-  extras: [],
-  manualVersions: {},
-}
-
-export function getDefaultInputs(): ResolutionInputs {
-  return structuredClone(DEFAULT_INPUTS)
+export function getDefaultInputs(platform: PlatformOption = detectBrowserPlatformSync()): ResolutionInputs {
+  return {
+    packageName: '',
+    rootVersion: null,
+    pythonVersion: '3.12',
+    platform,
+    extras: [],
+    manualVersions: {},
+  }
 }
 
 export function readInputsFromUrl(): ResolutionInputs {
+  const defaultInputs = getDefaultInputs()
   const search = new URLSearchParams(window.location.search)
-  const packageName = search.get('pkg')?.trim() ?? DEFAULT_INPUTS.packageName
-  const rootVersion = search.get('version')?.trim() ?? DEFAULT_INPUTS.rootVersion
-  const pythonVersion = search.get('py')?.trim() ?? DEFAULT_INPUTS.pythonVersion
-  const platform = parsePlatform(search.get('platform')) ?? DEFAULT_INPUTS.platform
+  const packageName = search.get('pkg')?.trim() ?? defaultInputs.packageName
+  const rootVersion = search.get('version')?.trim() ?? defaultInputs.rootVersion
+  const pythonVersion = search.get('py')?.trim() ?? defaultInputs.pythonVersion
+  const platform = parsePlatform(search.get('platform')) ?? defaultInputs.platform
   const extras = search
     .get('extras')
     ?.split(',')

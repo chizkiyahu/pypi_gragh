@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import './app.css'
 import { createBrowserCacheStore } from './lib/cache.ts'
-import { formatPlatformOption } from './lib/platforms.ts'
+import { detectBrowserPlatform, formatPlatformOption } from './lib/platforms.ts'
 import { getDefaultInputs, readInputsFromUrl, writeInputsToUrl } from './lib/url-state.ts'
 import { normalizePackageName } from './lib/versions.ts'
 import type {
@@ -18,6 +18,7 @@ type PypiClient = ReturnType<typeof import('./lib/pypi.ts')['createPypiClient']>
 type ResolveDependencyGraph = typeof import('./lib/resolver.ts')['resolveDependencyGraph']
 
 const SAMPLE_PACKAGES = ['fastapi', 'httpx', 'apache-airflow', 'pydantic']
+const GRAPH_STATUS_NOTICE_DELAY_MS = 1000
 
 function SvgSprite() {
   return (
@@ -40,6 +41,9 @@ export function App() {
   const initialInputsRef = useRef(
     typeof window === 'undefined' ? getDefaultInputs() : readInputsFromUrl(),
   )
+  const initialUrlHasPlatformRef = useRef(
+    typeof window !== 'undefined' && Boolean(new URLSearchParams(window.location.search).get('platform')?.trim()),
+  )
   const initialInputs = initialInputsRef.current
 
   const [GraphCanvasComponent, setGraphCanvasComponent] = useState<GraphCanvasComponent | null>(null)
@@ -58,12 +62,48 @@ export function App() {
   const [showAllEdgeLabels, setShowAllEdgeLabels] = useState(false)
   const [cacheResetting, setCacheResetting] = useState(false)
   const [graphCanvasLoadError, setGraphCanvasLoadError] = useState<string | null>(null)
+  const [showDelayedGraphProgress, setShowDelayedGraphProgress] = useState(false)
   const latestRequestId = useRef(0)
   const syncingInputsRef = useRef(false)
+  const inputsRef = useRef(initialInputs)
+
+  useEffect(() => {
+    inputsRef.current = inputs
+  }, [inputs])
 
   useEffect(() => {
     writeInputsToUrl(inputs)
   }, [inputs])
+
+  useEffect(() => {
+    if (initialUrlHasPlatformRef.current) {
+      return
+    }
+
+    let cancelled = false
+
+    void detectBrowserPlatform().then((detectedPlatform) => {
+      if (cancelled || detectedPlatform === initialInputs.platform) {
+        return
+      }
+
+      const currentInputs = inputsRef.current
+      if (currentInputs.platform !== initialInputs.platform) {
+        return
+      }
+
+      const nextInputs = { ...currentInputs, platform: detectedPlatform }
+      setInputs(nextInputs)
+
+      if (nextInputs.packageName.trim()) {
+        void runResolution(nextInputs)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!initialInputs.packageName.trim()) {
@@ -100,6 +140,21 @@ export function App() {
       cancelled = true
     }
   }, [GraphCanvasComponent, graphCanvasLoadError, result, status])
+
+  useEffect(() => {
+    if (status !== 'loading' || !result) {
+      setShowDelayedGraphProgress(false)
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowDelayedGraphProgress(true)
+    }, GRAPH_STATUS_NOTICE_DELAY_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [result, status])
 
   async function ensureResolutionEngine() {
     const [pypiModule, resolverModule] = await Promise.all([
@@ -273,7 +328,9 @@ export function App() {
   const rootNode =
     result?.rootId ? result.nodes.find((node) => node.id === result.rootId) ?? null : null
   const activeEnvironment = collectActiveEnvironment(displayedInputs, displayedRootOptions, rootNode?.displayVersion ?? null)
-  const activeProgress = status === 'loading' ? progress ?? createPendingProgress(inputs.packageName) : null
+  const loadingProgress = status === 'loading' ? progress ?? createPendingProgress(inputs.packageName) : null
+  const landingProgress = !result ? loadingProgress : null
+  const graphProgress = result && showDelayedGraphProgress ? loadingProgress : null
 
   useEffect(() => {
     if (!result) {
@@ -319,7 +376,7 @@ export function App() {
               ))}
             </div>
 
-            {activeProgress ? <ResolutionStatusNotice progress={activeProgress} /> : null}
+            {landingProgress ? <ResolutionStatusNotice progress={landingProgress} /> : null}
 
             {error ? (
               <div class="inline-error">
@@ -621,7 +678,7 @@ export function App() {
           </div>
 
           <div class="graph-stage-body">
-            {activeProgress ? <ResolutionStatusNotice progress={activeProgress} compact /> : null}
+            {graphProgress ? <ResolutionStatusNotice progress={graphProgress} compact /> : null}
 
             <div class="graph-frame">
               {GraphCanvasComponent ? (
